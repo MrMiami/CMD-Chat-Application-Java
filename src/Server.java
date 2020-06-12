@@ -40,49 +40,42 @@ public class Server {
     public class ClientHandler extends Thread {
         private Socket clientSocket;
         private DataInputStream dIn;
-        private String client_username;
+        private DataOutputStream dOut;
+        private String username;
         public ClientHandler(Socket socket) throws IOException {
             this.clientSocket = socket;
-            sendTo(this.clientSocket, "gg".getBytes());
-            byte [] msg = "gg".getBytes();
-            DataOutputStream dOut = new DataOutputStream(this.clientSocket.getOutputStream());
-            dOut.writeInt(msg.length);
-            dOut.write(msg);
-            dOut.close();
-
-
         }
 
-        private void GetUserName(){
+        private void GetUserName() {
+            String server_response = "invalid";
             try {
-                PrintWriter out = new PrintWriter(clientSocket.getOutputStream(), true);
-                BufferedReader in = new BufferedReader(
-                        new InputStreamReader(clientSocket.getInputStream()));
-                String cur_username;
-                while (true){
-                    if((cur_username = in.readLine()) != null) {
-                        if (user_name.contains(cur_username)){
-                            out.println("invalid");
-                        } else{
-                            out.println("valid");
+                //thisdOut = new DataOutputStream(this.clientSocket.getOutputStream());
+                while (!server_response.equals("valid")) {
+                    int length = dIn.readInt();
+                    if (length > 0) {
+                        byte[] message = new byte[length];
+                        dIn.readFully(message, 0, message.length);
+                        String cur_username = new String(message);
+                        if (!user_name.contains(cur_username)) {
+                            server_response = "valid";
                             user_name.add(cur_username);
-                            break;
+                            this.username = cur_username;
                         }
+                        dOut.writeInt(server_response.length());
+                        dOut.write(server_response.getBytes());
                     }
                 }
-                out.close();
-                in.close();
-
             } catch (IOException e) {
                 e.printStackTrace();
             }
         }
 
-
-
         public void run(){
             try {
                 dIn = new DataInputStream(clientSocket.getInputStream());
+                dOut = new DataOutputStream(clientSocket.getOutputStream());
+                GetUserName();
+                clients.put(this.clientSocket.getRemoteSocketAddress().toString(), this.clientSocket);
             } catch (IOException e) {
                 e.printStackTrace();
             }
@@ -92,34 +85,28 @@ public class Server {
                     if (length >= 0) {
                         byte [] message = new byte[length];
                         dIn.readFully(message, 0, message.length);
-                        String str = new String(message);
-                        test_str = str;
-                        System.out.println("[Client says]: " + str);
-
-                        // Doesnt have username
-                        /*if (!clients.containsKey(clientSocket.getRemoteSocketAddress().toString())
-                        && user_name.contains(str)){
-                            System.out.println("[A]");
-                            sendTo(this.clientSocket, "invalid".getBytes());
-                        } else if (!clients.containsKey(clientSocket.getRemoteSocketAddress().toString())
-                        && !user_name.contains(str)){
-                            System.out.println("[B]");
-                            clients.put(clientSocket.getRemoteSocketAddress().toString(), clientSocket);
-                            user_name.add(str);
-                            sendTo(this.clientSocket, "valid".getBytes());
-                        }*/
-                        //else {
-
-                            for (String s : clients.keySet()) {
-                                if (!s.equals(clientSocket.getRemoteSocketAddress().toString())) {
-                                    sendTo(clients.get(s), message);
-                                }
+                        //String str = new String(message);
+                        //System.out.println("[Client says]: " + str);
+                        for (String s : clients.keySet()) {
+                            if (!s.equals(clientSocket.getRemoteSocketAddress().toString())) {
+                                sendTo(clients.get(s), message);
                             }
-                        //}
+                        }
                     }
                 } catch (IOException e) {
-                    //System.out.println(test_str);
+                    user_name.remove(username);
+                    clients.remove(this.clientSocket.getRemoteSocketAddress().toString());
+                    System.out.println("[Connection remove]: " +
+                            this.clientSocket.getRemoteSocketAddress().toString());
+                    try {
+                        dIn.close();
+                        dOut.close();
+                        this.clientSocket.close();
+                    } catch (IOException ex) {
+                        ex.printStackTrace();
+                    }
                     e.printStackTrace();
+                    return;
                 }
 
             }
@@ -127,17 +114,14 @@ public class Server {
 
 
 
-        public void sendTo(Socket receiver_socket, byte [] msg){
+        private void sendTo(Socket receiver_socket, byte [] msg){
             try {
                 DataOutputStream dOut = new DataOutputStream(receiver_socket.getOutputStream());
                 dOut.writeInt(msg.length);
                 dOut.write(msg);
-                dOut.close();
             } catch (IOException e) {
                 e.printStackTrace();
             }
-
-
         }
     }
 
