@@ -11,21 +11,17 @@ import java.util.Set;
 public class Server {
     private ServerSocket serverSocket;
     private static final int PORT = 12345;
-    private byte [] PROMPT_USERNAME;
-    private byte [] REPROMPT_USERNAME;
     private Map<String, Socket> clients;
     private Set<String> user_name;
-    private String test_str;
 
     public void start (){
         clients = new HashMap<>();
         try {
             serverSocket = new ServerSocket(PORT);
             user_name = new HashSet<>();
-            this.PROMPT_USERNAME = "Choose a cool username: \n".getBytes();
-            this.REPROMPT_USERNAME = "This name has already been used, choose a better than them: \n".getBytes();
-            System.out.println("Server running...");
+            System.out.println("Server is established...");
             while(true){
+                // Waiting and accepting connection from clients
                 Socket clientSocket = serverSocket.accept();
                 System.out.println("[Connect From RemoteSoketAddress]: " + (clientSocket.getRemoteSocketAddress()));
                 new ClientHandler(clientSocket).start();
@@ -46,10 +42,58 @@ public class Server {
             this.clientSocket = socket;
         }
 
+
+
+        public void run(){
+            try {
+                dIn = new DataInputStream(clientSocket.getInputStream());
+                dOut = new DataOutputStream(clientSocket.getOutputStream());
+                GetUserName();
+                clients.put(this.clientSocket.getRemoteSocketAddress().toString(), this.clientSocket);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+            while(true) {
+                // Distribute messages sent from this user to all other
+                // users in the chat room (exclude the sender)
+                try {
+                    int length = dIn.readInt();
+                    if (length >= 0) {
+                        byte [] message = new byte[length];
+                        dIn.readFully(message, 0, message.length);
+                        for (String s : clients.keySet()) {
+                            if (!s.equals(clientSocket.getRemoteSocketAddress().toString())) {
+                                sendTo(clients.get(s), message);
+                            }
+                        }
+                    }
+                }
+                // When this client disconnect from the chat room
+                // close he client's socket and remove all client's information
+                catch (IOException e) {
+                    user_name.remove(username);
+                    clients.remove(this.clientSocket.getRemoteSocketAddress().toString());
+                    System.out.println("[Connection remove]: " +
+                            this.clientSocket.getRemoteSocketAddress().toString());
+                    try {
+                        dIn.close();
+                        dOut.close();
+                        this.clientSocket.close();
+                    } catch (IOException ex) {
+                        ex.printStackTrace();
+                    }
+                    e.printStackTrace();
+                    return;
+                }
+            }
+        }
+
         private void GetUserName() {
             String server_response = "invalid";
             try {
-                //thisdOut = new DataOutputStream(this.clientSocket.getOutputStream());
+                // read username sent from users, and check to see if it's that username
+                // is taken. sending "invalid" message to users
+                // until they give a valid username
                 while (!server_response.equals("valid")) {
                     int length = dIn.readInt();
                     if (length > 0) {
@@ -70,50 +114,7 @@ public class Server {
             }
         }
 
-        public void run(){
-            try {
-                dIn = new DataInputStream(clientSocket.getInputStream());
-                dOut = new DataOutputStream(clientSocket.getOutputStream());
-                GetUserName();
-                clients.put(this.clientSocket.getRemoteSocketAddress().toString(), this.clientSocket);
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-            while(true) {
-                try {
-                    int length = dIn.readInt();
-                    if (length >= 0) {
-                        byte [] message = new byte[length];
-                        dIn.readFully(message, 0, message.length);
-                        //String str = new String(message);
-                        //System.out.println("[Client says]: " + str);
-                        for (String s : clients.keySet()) {
-                            if (!s.equals(clientSocket.getRemoteSocketAddress().toString())) {
-                                sendTo(clients.get(s), message);
-                            }
-                        }
-                    }
-                } catch (IOException e) {
-                    user_name.remove(username);
-                    clients.remove(this.clientSocket.getRemoteSocketAddress().toString());
-                    System.out.println("[Connection remove]: " +
-                            this.clientSocket.getRemoteSocketAddress().toString());
-                    try {
-                        dIn.close();
-                        dOut.close();
-                        this.clientSocket.close();
-                    } catch (IOException ex) {
-                        ex.printStackTrace();
-                    }
-                    e.printStackTrace();
-                    return;
-                }
-
-            }
-        }
-
-
-
+        // send msg to specified sockets
         private void sendTo(Socket receiver_socket, byte [] msg){
             try {
                 DataOutputStream dOut = new DataOutputStream(receiver_socket.getOutputStream());
