@@ -1,4 +1,3 @@
 # Command-Line-Chat-App-Java
-The application is host by "localhost" by default.
-To run the server, compile and run RunServer.java
-To run connect a client to the server, compile and run RunClient.java.
+By default, the application is host by "localhost" using port number. To run the server, compile and run RunServer.java;
+ To connect a client to the server, compile and run RunClient.java.
